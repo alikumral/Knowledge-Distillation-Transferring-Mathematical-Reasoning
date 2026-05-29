@@ -1,0 +1,30 @@
+# Core dependencies for the math-distillation pipeline.
+#
+# Versions are intentionally UNPINNED here. After 00_setup.ipynb runs cleanly
+# on Colab, freeze the resolved versions (`pip freeze`) into this file and the
+# README so the grader's fresh Colab reproduces our exact environment.
+# (TRL / transformers APIs drift between versions — pinning is mandatory before
+#  the final submission. See plan.md §5 and §9.1.)
+
+# --- model + training stack ---
+transformers
+datasets
+accelerate
+peft
+trl
+bitsandbytes          # 4-bit NF4 quantization (CUDA only; no-op on CPU/Windows)
+sentencepiece
+huggingface_hub
+
+# torch is provided by the Colab image; install locally only if needed:
+# torch
+
+# --- config / io / analysis ---
+pyyaml
+numpy
+pandas
+matplotlib
+tqdm
+
+# --- dev / testing ---
+pytest

@@ -1,0 +1,19 @@
+# Stage 1 -- teacher CoT generation (plan.md §6 Stage 1).
+model_id: meta-llama/Llama-3.1-8B-Instruct
+
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_compute_dtype: bfloat16
+
+generation:
+  k_samples: 4          # samples per problem; rejection sampling keeps the correct ones
+  do_sample: true
+  temperature: 0.7      # diversity for a varied trace pool
+  top_p: 0.9
+  max_new_tokens: 512
+
+batch_size: 16          # tune to T4 VRAM during the smoke test
+output: traces/teacher_traces.jsonl   # appended incrementally -> resumable
+seed: 0

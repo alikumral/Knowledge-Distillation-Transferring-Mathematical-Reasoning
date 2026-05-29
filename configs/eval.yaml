@@ -1,0 +1,26 @@
+# Stage 4 -- evaluation (plan.md §6 Stage 4).
+# Greedy decoding => deterministic; training seeds are the only source of variance.
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_compute_dtype: bfloat16
+
+decoding:
+  do_sample: false
+  temperature: 0.0
+  max_new_tokens: 512
+
+batch_size: 16
+
+splits:
+  gsm8k_test: true
+  math_ood: true
+
+latency:
+  enabled: true
+  n_runs: 50          # median wall-clock per problem
+  batch_size: 1
+  warmup: 5
+
+output_dir: results/predictions

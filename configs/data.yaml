@@ -1,0 +1,11 @@
+# Dataset sources and the frozen OOD split (plan.md §6 Stage 0).
+gsm8k:
+  hf_id: openai/gsm8k
+  config: main          # 'main' = the standard 7,473 train / 1,319 test split
+
+math:
+  hf_id: qwedsacf/competition_math
+  split: train          # this mirror exposes a single split; used only as an OOD eval pool
+  ood_size: 200         # MATH-200
+  ood_seed: 42          # frozen so the OOD set is identical across runs
+  stratify_by: level    # 'Level 1' .. 'Level 5'

@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mathdistill"
+version = "0.1.0"
+description = "Knowledge distillation of mathematical reasoning from Llama-3.1-8B to Llama-3.2-1B (CS455 project)"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Ali Kumral" },
+    { name = "Revna Demirkale" },
+]
+
+# Runtime deps are declared in requirements.txt (pinned after Colab smoke test).
+# Keep this list minimal so `pip install -e .` works for local, GPU-free testing
+# of the pure-Python modules (prompts, answers, utils).
+dependencies = [
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

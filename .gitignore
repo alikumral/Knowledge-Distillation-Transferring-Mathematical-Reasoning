@@ -1,0 +1,39 @@
+# --- Project artifacts (live on Google Drive / HF Hub, never committed) ---
+data/
+outputs/
+traces/
+sft/
+adapters/
+logs/
+*.ckpt
+*.safetensors
+*.bin
+
+# --- Secrets ---
+.env
+*.token
+hf_token*
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# --- OS / IDE ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Reference PDFs (kept locally, excluded from the code zip) ---
+*.pdf
+
+# --- Local Claude Code settings (machine-specific) ---
+.claude/settings.local.json
