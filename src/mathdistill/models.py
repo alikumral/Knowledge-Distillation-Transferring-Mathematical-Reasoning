@@ -44,7 +44,7 @@ def load_model_4bit(model_id: str, qcfg: dict):
         model_id,
         quantization_config=build_bnb_config(qcfg),
         device_map="auto",
-        torch_dtype=_compute_dtype(qcfg["bnb_4bit_compute_dtype"]),
+        dtype=_compute_dtype(qcfg["bnb_4bit_compute_dtype"]),
     )
     model.config.use_cache = True  # generation; SFTTrainer disables this for training
     return model
