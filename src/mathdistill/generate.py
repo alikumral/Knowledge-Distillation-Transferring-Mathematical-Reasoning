@@ -49,9 +49,14 @@ def generate_teacher_traces(cfg: dict, data_cfg: dict) -> Path:
     done = _done_problem_ids(out_path)
     logger.info("Resuming: %d problems already have traces", len(done))
 
+    n_problems = len(train)
+    if cfg.get("limit"):
+        n_problems = min(n_problems, int(cfg["limit"]))
+        logger.info("LIMIT set -> pilot mode: first %d problems only", n_problems)
+
     bs = cfg["batch_size"]
-    todo = [i for i in range(len(train)) if i not in done]
-    logger.info("Generating for %d / %d problems (k=%d)", len(todo), len(train), gen["k_samples"])
+    todo = [i for i in range(n_problems) if i not in done]
+    logger.info("Generating for %d / %d problems (k=%d)", len(todo), n_problems, gen["k_samples"])
 
     for start in range(0, len(todo), bs):
         batch_ids = todo[start : start + bs]
