@@ -8,13 +8,17 @@ quantization:
   bnb_4bit_compute_dtype: bfloat16
 
 generation:
-  k_samples: 4          # samples per problem; rejection sampling keeps the correct ones
+  k_samples: 1          # 1 per generate() call; run 3 passes (pass_id 0/1/2) for 3 traces/problem
   do_sample: true
-  temperature: 0.7      # diversity for a varied trace pool
+  temperature: 0.7      # diversity across passes
   top_p: 0.9
-  max_new_tokens: 512
+  max_new_tokens: 256   # sufficient for GSM8K; 512 was 2x slower with no quality gain
 
-batch_size: 4           # T4 effective batch = batch_size * k_samples = 16 concurrent seqs
+# pass_id: which sampling pass this run is (0, 1, or 2). Set in the notebook Stage 1 cell.
+# Each pass writes sample_idx = pass_id for every problem; resumable within a pass.
+pass_id: 0
+
+batch_size: 16          # safe with k=1 on T4 (16 seqs * ~256 tokens KV cache fits easily)
 limit: null             # set to e.g. 30 for a quick pilot; null = full GSM8K train split
-output: traces/teacher_traces.jsonl   # appended incrementally -> resumable
+output: traces/teacher_traces.jsonl   # all passes append to the same file -> resumable
 seed: 0
