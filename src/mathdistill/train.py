@@ -65,15 +65,17 @@ def _build_sft_config(out_dir: Path, s: dict, seed: int):
         report_to="none",
     )
 
-    # Version-sensitive params
-    for key, val in [
-        ("max_seq_length", s["max_seq_len"]),
-        ("assistant_only_loss", s.get("assistant_only_loss", True)),
-    ]:
-        if key in valid:
-            kwargs[key] = val
-        else:
-            logger.info("SFTConfig: '%s' not in this TRL version — skipping", key)
+    if "max_seq_length" in valid:
+        kwargs["max_seq_length"] = s["max_seq_len"]
+    else:
+        logger.info("SFTConfig: 'max_seq_length' not in this TRL version — skipping")
+
+    # Always disable the built-in assistant_only_loss: new TRL requires
+    # {% generation %} markers in the chat template to use it, which Llama-3's
+    # template doesn't have. We achieve completion-only loss via
+    # DataCollatorForCompletionOnlyLM instead (see _make_collator).
+    if "assistant_only_loss" in valid:
+        kwargs["assistant_only_loss"] = False
 
     return SFTConfig(**kwargs)
 
@@ -81,18 +83,26 @@ def _build_sft_config(out_dir: Path, s: dict, seed: int):
 # --------------------------------------------------------------------------- #
 # Completion-only collator fallback (when assistant_only_loss not in SFTConfig)
 # --------------------------------------------------------------------------- #
-def _maybe_collator(tok, s: dict):
-    """Return DataCollatorForCompletionOnlyLM if assistant_only_loss unavailable."""
-    from trl import SFTConfig
-    if "assistant_only_loss" in inspect.signature(SFTConfig.__init__).parameters:
-        return None  # SFTConfig handles it natively
+def _make_collator(tok):
+    """DataCollatorForCompletionOnlyLM for completion-only loss on Llama-3.
 
+    Finds the assistant-turn header tokens in each example and masks
+    (loss = -100) everything up to and including them, so loss is computed
+    only on the chain-of-thought + final answer. More reliable than
+    SFTConfig.assistant_only_loss, which requires {% generation %} markers
+    in the chat template (not present in Llama-3's default template).
+    """
     try:
         from trl import DataCollatorForCompletionOnlyLM
-        # Llama-3 assistant header — marks where completion loss begins
-        response_template = "<|start_header_id|>assistant<|end_header_id|>"
+        # Llama-3 chat template places this exact string before every
+        # assistant turn. Tokenize without special tokens so the IDs match
+        # what appears inside the full conversation sequence.
+        response_template_ids = tok.encode(
+            "<|start_header_id|>assistant<|end_header_id|>\n\n",
+            add_special_tokens=False,
+        )
         collator = DataCollatorForCompletionOnlyLM(
-            response_template=response_template,
+            response_template=response_template_ids,
             tokenizer=tok,
             mlm=False,
         )
@@ -100,8 +110,8 @@ def _maybe_collator(tok, s: dict):
         return collator
     except Exception as e:
         logger.warning(
-            "Completion-only loss unavailable (%s). Training on full sequence. "
-            "Document this in the report as a minor limitation.", e
+            "Completion-only collator failed (%s) — training on full sequence. "
+            "Note this in the report.", e
         )
         return None
 
@@ -130,7 +140,7 @@ def train_one(cfg: dict, data_cfg: dict, seed: int) -> Path:
     out_dir = artifact_path(cfg["output_dir"], f"seed{seed}")
 
     sft_args = _build_sft_config(out_dir, s, seed)
-    collator = _maybe_collator(tok, s)
+    collator = _make_collator(tok)
 
     # SFTTrainer: processing_class (new) vs tokenizer (old)
     trainer_sig = set(inspect.signature(SFTTrainer.__init__).parameters)
