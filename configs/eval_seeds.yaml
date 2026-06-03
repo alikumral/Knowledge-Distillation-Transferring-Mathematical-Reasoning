@@ -1,5 +1,5 @@
-# Faster eval for the extra seeds: GSM8K only, no MATH/latency
-# (MATH and latency were already measured on seed 0). Used for H1/H3 seed reliability.
+# Eval config for the extra seeds: GSM8K + MATH (both benchmarks for mean±std),
+# but latency OFF (inference speed is seed-independent; measured once on seed 0).
 quantization:
   load_in_4bit: true
   bnb_4bit_quant_type: nf4
@@ -15,10 +15,10 @@ batch_size: 16
 
 splits:
   gsm8k_test: true
-  math_ood: false       # already have seed-0 MATH; skip to save time
+  math_ood: true
 
 latency:
-  enabled: false        # already measured on seed 0
+  enabled: false        # seed-independent; already measured on seed 0
   n_runs: 50
   batch_size: 1
   warmup: 5
