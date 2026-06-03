@@ -1,0 +1,26 @@
+# Faster eval for the extra seeds: GSM8K only, no MATH/latency
+# (MATH and latency were already measured on seed 0). Used for H1/H3 seed reliability.
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_compute_dtype: bfloat16
+
+decoding:
+  do_sample: false
+  temperature: 0.0
+  max_new_tokens: 512
+
+batch_size: 16
+
+splits:
+  gsm8k_test: true
+  math_ood: false       # already have seed-0 MATH; skip to save time
+
+latency:
+  enabled: false        # already measured on seed 0
+  n_runs: 50
+  batch_size: 1
+  warmup: 5
+
+output_dir: results/predictions
