@@ -11,7 +11,7 @@ decoding:
   temperature: 0.0
   max_new_tokens: 512
 
-batch_size: 16
+batch_size: 256
 
 splits:
   gsm8k_test: true
