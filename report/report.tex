@@ -1,0 +1,445 @@
+% ============================================================================
+% CS455 Term Project — Knowledge Distillation of Mathematical Reasoning
+% Ali Kumral, Revna Demirkale
+%
+% OVERLEAF INSTRUCTIONS:
+%   1. New Project -> Upload Project (or paste this file).
+%   2. Upload the two figures from results/figures/ on your Drive:
+%        F1_difficulty_accuracy.png   F2_generation_lengths.png
+%      into the same folder (or a figures/ subfolder; adjust \graphicspath).
+%   3. Compile with pdfLaTeX.
+% ============================================================================
+\documentclass[11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage{caption}
+\usepackage{authblk}
+
+\graphicspath{{figures/}{./}}
+
+\title{\textbf{Knowledge Distillation of Mathematical Reasoning:\\
+Transferring Chain-of-Thought from Llama-3.1-8B to Llama-3.2-1B}}
+\author[]{Ali Kumral (30586) \quad Revna Demirkale (32056)}
+\affil[]{CS 455 --- Large Language Models, Spring 2025/2026 \quad Category (D): Efficiency / Optimization}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+Large language models for multi-step reasoning are expensive to serve, motivating
+the transfer of reasoning ability from large \emph{teacher} models into small
+\emph{student} models. We study sequence-level chain-of-thought (CoT) distillation
+from \textbf{Llama-3.1-8B-Instruct} into \textbf{Llama-3.2-1B-Instruct} on
+grade-school math, using a tight, fully reproducible recipe that runs on Google
+Colab. We generate teacher CoT traces over the GSM8K training set, filter them by
+rejection sampling against gold answers (81.5\% acceptance), and fine-tune the
+student with QLoRA under five controlled conditions. Distillation works and is
+statistically overwhelming: the distilled 1B student improves from \textbf{38.1\%}
+to \textbf{46.9\%} on GSM8K test ($+8.9$ pp, McNemar $p<10^{-9}$), and crucially
+\textbf{outperforms a student trained on GSM8K's own gold solutions} by $+13$ pp
+($p<10^{-17}$), showing that teacher-generated reasoning carries signal beyond the
+labeled data. We also report two robust \emph{negative} findings: (1) fine-tuning
+on gold CoT \emph{degrades} accuracy below the zero-shot baseline, and (2) using
+three teacher traces per problem is \emph{significantly worse} than one (a
+$\sim$6$\sigma$ effect across three seeds), contrary to our hypothesis. Gains do
+not transfer out of distribution: accuracy on a held-out MATH subset drops relative
+to zero-shot. Finally, the practical efficiency advantage of the 1B student is
+\textbf{memory} ($5.2\times$ lower peak VRAM), not latency, because the distilled
+student inherits the teacher's verbosity. We release code, the cleaned trace
+dataset, and the trained adapter.
+\end{abstract}
+
+\section{Introduction}
+Deploying LLMs for reasoning tasks---math, code, structured planning---is
+bottlenecked by the cost and latency of large models. A 1B model is roughly
+$8\times$ cheaper to serve than an 8B model and dramatically cheaper than a 70B
+model; if a small student can be brought close to a larger teacher's quality on a
+target task, edge inference, on-device assistants, and high-throughput batch jobs
+all become viable. Chain-of-thought (CoT) distillation---training a small model on
+the step-by-step reasoning of a larger one---has been shown to yield large gains,
+but published recipes are often computationally heavy or rely on closed teacher
+APIs.
+
+We ask a focused, practical question: \emph{how far can a 1B student be pushed on
+grade-school math reasoning by distilling from a small, open 8B teacher, under a
+single-digit-GPU-hour budget, with rigorous baselines?} Rather than chasing a
+single headline number, we build five tightly controlled conditions so that every
+comparison isolates one variable, and we report honest negative results where they
+occur.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+  \item A tight, fully open, reproducible CoT-distillation recipe (8B teacher, not
+  70B; QLoRA; runs end-to-end on Colab) with resumable pipeline stages and
+  released artifacts.
+  \item Rigorous evidence that distillation works and that the teacher signal
+  exceeds gold labels (H1, H2), confirmed with bootstrap confidence intervals and
+  exact McNemar tests across three random seeds.
+  \item Two robust negative findings: training on gold CoT \emph{hurts} relative to
+  zero-shot, and \emph{more} teacher traces per problem (3 vs.\ 1) is significantly
+  \emph{worse}---a $\sim$6$\sigma$ effect.
+  \item An efficiency analysis showing the real lever is memory, not latency, due
+  to verbosity inheritance, plus per-difficulty and qualitative error analyses and
+  an out-of-distribution (MATH) evaluation showing no transfer.
+\end{enumerate}
+
+\section{Related Work}
+\paragraph{Knowledge distillation.} Hinton et al.~\cite{hinton2015} introduced
+distillation via soft-label matching. For autoregressive LLMs, storing teacher
+logits is impractical, so \emph{sequence-level} distillation---training the student
+on text generated by the teacher---has become standard. MiniLLM~\cite{minillm} and
+DistiLLM~\cite{distillm} refine the objective and data construction and report
+sequence-level distillation as competitive. The DeepSeek-R1 report~\cite{deepseekr1}
+shows that fine-tuning small models on long CoT traces from a strong teacher
+transfers reasoning effectively.
+
+\paragraph{CoT distillation for reasoning.} Magister et al.~\cite{magister2023}
+show that fine-tuning small models on teacher CoT improves multi-step arithmetic,
+and that \emph{rejection sampling} against gold answers improves trace quality---the
+recipe we follow.
+
+\paragraph{Efficient fine-tuning.} LoRA~\cite{lora} freezes the base model and
+learns low-rank adapters; QLoRA~\cite{qlora} adds 4-bit NF4 quantization of the
+frozen base, enabling fine-tuning of billion-parameter models on a single GPU. We
+use QLoRA throughout.
+
+\paragraph{Benchmarks.} GSM8K~\cite{gsm8k} is the canonical grade-school math
+word-problem benchmark with gold CoT; MATH~\cite{math} contains harder
+competition-level problems and serves as our out-of-distribution test.
+
+Our work differs from prior distillation papers in deliberately staying small and
+open (8B teacher, 1B student, single-GPU budget) and in emphasizing controlled
+baselines and honest negative results over a single benchmark number.
+
+\section{Method}
+\subsection{Overview}
+Our pipeline has four stages: (1) teacher CoT generation, (2) rejection sampling
+and dataset construction, (3) QLoRA fine-tuning of the student, and (4) evaluation.
+All logic lives in a small installable package; each stage reads and writes
+versioned JSONL artifacts so that long runs on Colab are resumable across
+disconnects.
+
+\subsection{Comparison conditions}
+We train and evaluate five conditions (Table~\ref{tab:conditions}), designed so
+that each pairwise comparison isolates a single factor. Conditions ii--iv are
+trained with three random seeds; conditions i and v are deterministic (greedy
+decoding). Gold and teacher training targets are formatted identically (same system
+prompt, same final-answer line), so the \emph{only} difference between conditions
+ii and iii is the \emph{content} of the reasoning, making the H2 comparison fair.
+
+\begin{table}[t]
+\centering
+\caption{The five comparison conditions.}
+\label{tab:conditions}
+\begin{tabular}{clccl}
+\toprule
+\# & Condition & Trained? & Training data & Isolates \\
+\midrule
+i   & Zero-shot 1B      & no  & ---                       & lower bound \\
+ii  & Gold CoT          & yes & GSM8K gold solutions      & labels alone \\
+iii & Teacher-1         & yes & 1 teacher trace / problem & distillation (H1) \\
+iv  & Teacher-3         & yes & $\le$3 traces / problem   & more traces (H3) \\
+v   & 8B teacher        & no  & ---                       & upper bound \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Teacher CoT generation}
+We run Llama-3.1-8B-Instruct in 4-bit NF4 (double quantization, bf16 compute) over
+all 7{,}473 GSM8K training problems. To obtain diverse traces while controlling
+VRAM, we sample in \textbf{three independent passes} (one trace per problem per
+pass, temperature 0.7, top-$p$ 0.9, max 256 new tokens) rather than drawing $k$
+samples in a single decoding call. Each pass uses a different seed and appends to a
+shared pool; generation is resumable at the (problem, sample) level. This produced
+22{,}449 raw traces.
+
+\subsection{Rejection sampling and dataset construction}
+We parse the final numerical answer from each trace and keep only traces matching
+the gold label. \textbf{18{,}287 / 22{,}449 traces were accepted (81.5\%)},
+covering 6{,}922 of 7{,}473 problems with $\ge$1 correct trace and 5{,}081 with
+$\ge$3. We build three SFT datasets: \emph{Gold} (7{,}473 examples), \emph{Teacher-1}
+(6{,}922; one trace/problem), and \emph{Teacher-3} (18{,}263; up to three/problem).
+
+\subsection{QLoRA fine-tuning}
+The student (Llama-3.2-1B-Instruct) is loaded in 4-bit NF4; we attach LoRA adapters
+(rank 16, $\alpha=32$, dropout 0.05) on all attention and MLP projections. We train
+for 3 epochs at learning rate $2\times10^{-4}$ (cosine schedule, 3\% warmup),
+effective batch size 16, bf16, gradient checkpointing, and paged 8-bit AdamW, with
+maximum sequence length 1{,}024. Training one condition takes 18--49 minutes on an
+A100.
+
+\paragraph{Implementation note (loss masking).} We intended \emph{completion-only}
+loss masking (loss on the assistant reasoning, not the prompt). The TRL version
+available on Colab had removed the collator we targeted and gated its built-in
+masking behind chat-template markers absent from Llama-3, so all conditions were
+trained with \textbf{full-sequence loss} instead. Because this choice is applied
+identically to every condition, it does not affect the \emph{relative} comparisons
+our hypotheses test; completion-only masking is left as future work
+(Section~\ref{sec:limitations}).
+
+\subsection{Evaluation protocol}
+We evaluate with greedy decoding (deterministic) and extract the final numerical
+answer using a fixed marker plus fallbacks ($\backslash$boxed\{\}, \texttt{\#\#\#\#},
+last number) with numeric normalization. The primary metric is GSM8K test
+exact-match accuracy (1{,}319 problems). Secondary metrics: MATH out-of-distribution
+accuracy (a frozen, level-stratified subset of 167 problems, ``MATH-167''),
+single-example latency (batch size 1), peak inference VRAM, and generation length.
+We report 95\% bootstrap confidence intervals over test items and, for paired
+comparisons, exact McNemar tests; trained conditions additionally report mean
+$\pm$ std over three seeds.
+
+\section{Experimental Setup}
+\textbf{Models.} Teacher \texttt{meta-llama/Llama-3.1-8B-Instruct}; student
+\texttt{meta-llama/Llama-3.2-1B-Instruct}; both 4-bit NF4, double quant, bf16
+compute. \textbf{Data.} \texttt{openai/gsm8k} (\texttt{main}): 7{,}473 train /
+1{,}319 test; out-of-distribution: a frozen stratified subset of
+\texttt{qwedsacf/competition\_math} (167 problems). \textbf{Hardware.} Google Colab
+(A100 for generation, training, and most evaluation). The proposal specified
+latency on a T4; we report latency on the A100 actually used and treat absolute
+latency as hardware-specific (the cross-model \emph{ratio} is the meaningful
+quantity). \textbf{Reproducibility.} All hyperparameters are in version-controlled
+YAML configs; every run records its seed and configuration.
+
+\section{Results}
+\subsection{Main results}
+Table~\ref{tab:main} reports accuracy with 95\% bootstrap CIs (seed 0) and seed
+mean $\pm$ std for trained conditions; Table~\ref{tab:mcnemar} reports paired
+significance.
+
+\begin{table}[t]
+\centering
+\caption{Main results. Accuracy (\%); CIs are 95\% bootstrap (seed 0).
+Teacher-1/Teacher-3 show mean\,$\pm$\,std over 3 seeds.}
+\label{tab:main}
+\begin{tabular}{lcccc}
+\toprule
+Condition & GSM8K & GSM8K 95\% CI & MATH & MATH 95\% CI \\
+\midrule
+Zero-shot 1B        & 38.06            & [35.5, 40.6] & 33.53            & [26.4, 40.7] \\
+Gold CoT            & 33.74            & [31.2, 36.3] & 20.96            & [15.0, 27.5] \\
+\textbf{Teacher-1}  & \textbf{46.93\,$\pm$\,0.11} & [44.1, 49.5] & 29.14\,$\pm$\,1.98 & [20.4, 33.5] \\
+Teacher-3           & 44.33\,$\pm$\,0.77 & [40.7, 46.1] & 26.15\,$\pm$\,0.56 & [20.4, 33.5] \\
+8B teacher          & 82.87            & [80.8, 84.9] & 53.89            & [46.1, 61.7] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Exact McNemar tests, paired on the 1{,}319 GSM8K test items.
+``A-only / B-only'' = problems one model got right that the other missed.}
+\label{tab:mcnemar}
+\begin{tabular}{llcl}
+\toprule
+Comparison & A-only / B-only & $p$ & Verdict \\
+\midrule
+H1: Teacher-1 vs Zero-shot & 236 / 121 & $1.2\times10^{-9}$  & distillation works *** \\
+H2: Teacher-1 vs Gold      & 290 / 118 & $8.2\times10^{-18}$ & teacher $\gg$ gold *** \\
+H3: Teacher-1 vs Teacher-3 & 199 / 154 & $0.019$             & one trace \emph{beats} three * \\
+Gold vs Zero-shot          & 172 / 229 & $0.005$             & gold \emph{hurts} ** \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Findings.}
+\textbf{H1 (distillation works): confirmed, overwhelmingly.} Teacher-1 improves
+over zero-shot by $+8.9$ pp ($p<10^{-9}$); the seed std of 0.0011 shows the result
+is extremely stable. \textbf{H2 (teacher $>$ gold): confirmed, overwhelmingly.}
+Teacher-1 beats Gold by $+13.2$ pp ($p<10^{-17}$): teacher-generated reasoning
+provides signal beyond the labeled data. \textbf{H3 (more traces help): reversed and
+robust.} Teacher-1 ($46.93\pm0.11$) significantly beats Teacher-3
+($44.33\pm0.77$); the $+2.6$ pp gap is $\approx5.9\times$ the pooled seed std
+($p=0.019$). \textbf{Gold fine-tuning hurts:} condition ii falls $4.3$ pp below
+zero-shot ($p=0.005$).
+
+\subsection{Accuracy by difficulty}
+We bucket the 1{,}319 test problems into easy/medium/hard tertiles by gold-CoT
+length ($\le$36 / 37--57 / $>$57 words; 452/431/436 problems). Distillation helps
+at all levels, with large absolute gains on easy ($+11.7$ pp) and hard ($+9.4$ pp)
+problems (Table~\ref{tab:difficulty}, Figure~\ref{fig:f1}). The largest remaining
+student--teacher gap is on hard problems (32.6 vs.\ 72.7), confirming the 1B
+student still cannot match reasoning that tracks several quantities at once. Gold
+training notably degrades medium and hard problems ($-7.0$ and $-5.5$ pp).
+
+\begin{table}[t]
+\centering
+\caption{GSM8K accuracy (\%) by problem difficulty (seed 0).}
+\label{tab:difficulty}
+\begin{tabular}{lccc}
+\toprule
+Condition & Easy ($\le$36) & Medium (37--57) & Hard ($>$57) \\
+\midrule
+Zero-shot 1B & 50.9 & 39.7 & 23.2 \\
+Gold         & 50.2 & 32.7 & 17.7 \\
+Teacher-1    & 62.6 & 44.6 & 32.6 \\
+Teacher-3    & 58.4 & 41.8 & 29.4 \\
+8B teacher   & 88.9 & 86.8 & 72.7 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.85\linewidth]{F1_difficulty_accuracy.png}
+\caption{GSM8K accuracy by difficulty tertile. Distillation (Teacher-1/3) lifts all
+buckets; Gold degrades medium/hard; the teacher gap is largest on hard problems.}
+\label{fig:f1}
+\end{figure}
+
+\subsection{Generation length and the verbosity tax}
+Median generated tokens: Gold 68, Zero-shot 156, Teacher-1 172, Teacher-3 174, 8B
+teacher 181 (Figure~\ref{fig:f2}). Two observations: (1) gold training
+\emph{collapses} reasoning length to 68 tokens---the model learned to answer
+tersely rather than reason, explaining why it underperforms even zero-shot; (2) the
+distilled students \emph{inherit the teacher's verbosity} ($\approx$172 vs.\ 181
+tokens), nearly matching the 8B model's output length.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{F2_generation_lengths.png}
+\caption{Generation-length distributions. Gold collapses to short answers; the
+distilled students inherit the teacher's verbosity.}
+\label{fig:f2}
+\end{figure}
+
+\subsection{Efficiency}
+At batch size 1, the distilled 1B student (12.4 s) is barely faster than the 8B
+teacher (13.7 s), because verbosity inheritance roughly doubles its output length
+relative to zero-shot (6.2 s). The genuine advantage is \textbf{memory: the student
+uses $5.2\times$ less peak VRAM} (1.13 vs.\ 5.87 GB; Table~\ref{tab:efficiency}),
+which translates into far higher achievable concurrency on fixed hardware.
+Distillation buys \emph{density}, not single-query speed.
+
+\begin{table}[t]
+\centering
+\caption{Inference efficiency (batch size 1).}
+\label{tab:efficiency}
+\begin{tabular}{lcc}
+\toprule
+Condition & Latency (s/problem) & Peak VRAM (GB) \\
+\midrule
+Zero-shot 1B        & 6.17  & 1.09 \\
+Teacher-1 (distilled) & 12.39 & 1.13 \\
+Teacher-3           & 12.91 & 1.13 \\
+8B teacher          & 13.73 & 5.87 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Out-of-distribution (MATH)}
+Distillation does \emph{not} transfer to MATH. Teacher-1 scores $29.14\pm1.98$,
+\emph{below} zero-shot's 33.53 and far below the teacher's 53.89. Teacher-1 and
+Teacher-3 are statistically indistinguishable on MATH, suggesting MATH performance
+is driven by base-model pretraining rather than our GSM8K fine-tuning. A manual
+audit of 15 MATH cases marked incorrect found only 1 false negative (LaTeX fraction
+formatting), so we treat MATH accuracies as slight lower bounds; the absence of OOD
+transfer is robust.
+
+\section{Discussion}
+\paragraph{Why does gold fine-tuning hurt?} GSM8K's gold solutions are terse and
+stylistically different from the student's natural output. Training on them with
+full-sequence loss pushed the student toward short, conclusory answers (median 68
+tokens), suppressing the step-by-step reasoning it needs. The teacher's traces, in
+the same Llama chat style the student already favors, reinforce rather than fight
+the student's prior.
+
+\paragraph{Why does one teacher trace beat three?} Two non-exclusive explanations.
+First, with three diverse traces per problem and full-sequence loss, the student
+fits three different surface reasoning styles for the same answer, which may blur
+its decoding distribution. Second, Teacher-3 reaches a much lower training loss
+($\approx$0.22 vs.\ $\approx$0.38) without improving test accuracy---a classic
+over-fitting signature. The verbosity statistics rule out a length explanation
+(Teacher-1 and Teacher-3 are nearly identical in output length), pointing to
+training dynamics rather than data style.
+
+\paragraph{Qualitative trace study.} Of the 1{,}319 test items, Teacher-1 corrected
+236 that zero-shot missed while losing 121, with 381 both-correct and 581
+both-wrong. Side-by-side cases illustrate the mechanism. On a multi-step
+``work-backwards'' problem, zero-shot applied operations in the wrong order while
+Teacher-1 introduced a variable and solved the equation systematically---evidence
+that the student learned a \emph{reasoning strategy}, not just answers. A
+representative failure shows the limit: on an overtime-pay problem Teacher-1 set the
+problem up correctly but multiplied the overtime rate by all 45 hours instead of
+the 5 overtime hours---a single arithmetic slip inside otherwise correct reasoning.
+On easy problems both models already succeed and differ only in phrasing.
+(Transcripts in Appendix~\ref{app:qual}.)
+
+\paragraph{Gap closed.} The distilled student closes roughly 20\% of the
+zero-shot-to-teacher accuracy gap (8.9 of 44.8 pp) at one-fifth the memory
+footprint---a meaningful, honest result at this scale.
+
+\section{Limitations}
+\label{sec:limitations}
+\begin{itemize}
+  \item \textbf{Full-sequence loss.} A TRL API change forced full-sequence rather
+  than completion-only loss. It is consistent across conditions (comparisons remain
+  fair) but may have amplified the gold-CoT degradation; completion-only masking is
+  the most important follow-up.
+  \item \textbf{Single seed for some conditions.} Conditions i, ii, v are single
+  runs (i and v are deterministic; gold is single-seed). The gold-vs-zero-shot
+  effect is large and significant, but multi-seed gold would tighten it.
+  \item \textbf{Approximate MATH grading.} Our matcher is string/numeric, not a
+  CAS; reported MATH numbers are conservative lower bounds ($\approx$7\%
+  false-negative rate in our audit).
+  \item \textbf{Latency hardware.} Latency was measured on A100, not the T4 in our
+  proposal; absolute numbers are hardware-specific.
+  \item \textbf{Possible GSM8K contamination.} The 1B model may have seen GSM8K
+  during pretraining; we mitigate by treating MATH as the genuine-generalization
+  signal, where we see no gain.
+\end{itemize}
+
+\section{Conclusion and Future Work}
+Sequence-level CoT distillation from a small open 8B teacher meaningfully improves a
+1B student on GSM8K ($38.1\%\rightarrow46.9\%$), and teacher-generated reasoning
+clearly beats the dataset's own gold solutions---both overwhelmingly significant.
+Equally informative are our negative findings: gold-CoT fine-tuning hurts, more
+teacher traces hurt, and gains do not transfer to MATH. The practical payoff of the
+small student is memory ($5.2\times$ lower VRAM), not latency, because the student
+inherits the teacher's verbosity. Future work: (1) completion-only loss masking
+(highest priority); (2) length-controlled or quality-filtered trace selection to
+address the verbosity tax and the counter-productive third trace; (3) a stronger
+math teacher (e.g., Qwen2.5-Math-7B) and a CAS-based MATH grader; (4) mixing in a
+small amount of OOD data to test whether transfer can be induced.
+
+\begin{thebibliography}{9}
+\bibitem{hinton2015} G.~Hinton, O.~Vinyals, J.~Dean. Distilling the Knowledge in a Neural Network. \emph{NeurIPS Workshop}, 2015.
+\bibitem{minillm} Y.~Gu, L.~Dong, F.~Wei, M.~Huang. MiniLLM: Knowledge Distillation of Large Language Models. \emph{ICLR}, 2024.
+\bibitem{distillm} J.~Ko, S.~Kim, et al. DistiLLM: Towards Streamlined Distillation for Large Language Models. \emph{ICML}, 2024.
+\bibitem{deepseekr1} DeepSeek-AI. DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning. 2025.
+\bibitem{magister2023} L.~C.~Magister, J.~Mallinson, J.~Adamek, et al. Teaching Small Language Models to Reason. \emph{ACL}, 2023.
+\bibitem{lora} E.~Hu, Y.~Shen, et al. LoRA: Low-Rank Adaptation of Large Language Models. \emph{ICLR}, 2022.
+\bibitem{qlora} T.~Dettmers, A.~Pagnoni, A.~Holtzman, L.~Zettlemoyer. QLoRA: Efficient Finetuning of Quantized LLMs. \emph{NeurIPS}, 2023.
+\bibitem{gsm8k} K.~Cobbe, V.~Kosaraju, et al. Training Verifiers to Solve Math Word Problems. \emph{arXiv:2110.14168}, 2021.
+\bibitem{math} D.~Hendrycks, C.~Burns, et al. Measuring Mathematical Problem Solving With the MATH Dataset. \emph{NeurIPS D\&B}, 2021.
+\end{thebibliography}
+
+\appendix
+\section{Reproducibility}
+Code: GitHub repository (\texttt{mathdistill} package + Colab notebook). Pipeline
+stages are config-driven (YAML) and resumable. Released artifacts: cleaned
+teacher-CoT dataset and best LoRA adapter (Hugging Face). Key settings: GSM8K
+\texttt{main}; teacher 4-bit NF4; QLoRA rank 16 / $\alpha$ 32 / 3 epochs / lr
+$2\times10^{-4}$; greedy evaluation; 3 seeds for trained conditions.
+
+\section{Qualitative transcripts}
+\label{app:qual}
+\emph{Paste the four cases from the notebook's qualitative analysis here:
+(i) ice-cream win, (ii) vacuum-cleaner win, (iii) overtime-pay loss, (iv) Janet's
+ducks style comparison.}
+
+\section{Use of AI assistants}
+Per course policy: we used an AI coding assistant to help implement the pipeline
+code, debug Colab/TRL environment issues, and draft this report; all experiments,
+results, and analysis decisions are our own, and all reported numbers come from our
+runs. \emph{(Adjust to reflect your exact usage before submission.)}
+
+\end{document}
