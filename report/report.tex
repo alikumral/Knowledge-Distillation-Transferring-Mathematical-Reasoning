@@ -443,9 +443,140 @@ $2\times10^{-4}$; greedy evaluation; 3 seeds for trained conditions.
 
 \section{Qualitative transcripts}
 \label{app:qual}
-\emph{Paste the four cases from the notebook's qualitative analysis here:
-(i) ice-cream win, (ii) vacuum-cleaner win, (iii) overtime-pay loss, (iv) Janet's
-ducks style comparison.}
+Four representative GSM8K cases comparing the zero-shot 1B model with Teacher-1
+(the distilled student). Over the 1{,}319 test items, Teacher-1 corrected 236
+problems the zero-shot model missed while losing 121 (381 both correct, 581 both
+wrong). Outputs are quoted verbatim.
+
+\subsection*{Case 1 --- Teacher-1 win (medium difficulty)}
+\noindent\textbf{Problem 27.}\quad Gold answer: \textbf{16}
+
+\textit{Question.} Cynthia eats one serving of ice cream every night. She buys
+cartons of ice cream with 15 servings per carton at a cost of \$4.00 per carton.
+After 60 days, how much will she spend on ice cream?
+
+\noindent\textbf{Zero-shot --- incorrect (178 tokens):}
+\begin{quote}\small
+To find the total cost of ice cream, we need to calculate the cost per serving and multiply it by the number of servings.
+
+1. First, we find the cost per serving. Since there are 15 servings per carton and the cost is \$4.00 per carton, the cost per serving is \$4.00 / 15 = \$0.27 per serving.
+
+2. The total number of servings is 1 * 60 = 60 servings.
+
+3. Total cost = cost per serving * total servings = \$0.27 * 60 = \$16.20.
+
+The final answer is: \$16.20
+\end{quote}
+
+\noindent\textbf{Teacher-1 --- correct (143 tokens):}
+\begin{quote}\small
+To find out how much Cynthia will spend after 60 days, we calculate the total number of servings and the cost.
+
+Since she eats one serving every night, she consumes 1 serving per day, so in 60 days she consumes 60 servings.
+
+Since each carton has 15 servings, the total number of cartons she buys is 60 / 15 = 4 cartons.
+
+The cost of one carton is \$4.00, so the total cost for 4 cartons is 4 * \$4.00 = \$16.00.
+
+The final answer is: 16
+\end{quote}
+\emph{Takeaway:} zero-shot rounds the cost-per-serving (\$0.27) and accumulates
+error; Teacher-1 converts to whole cartons first, the correct decomposition.
+
+\subsection*{Case 2 --- Teacher-1 win (hard difficulty)}
+\noindent\textbf{Problem 13.}\quad Gold answer: \textbf{18}
+
+\textit{Question.} Melanie sold a third of her vacuum cleaners at the green house,
+2 more to the red house, and half of what was left at the orange house. If she has
+5 left, how many did she start with?
+
+\noindent\textbf{Zero-shot --- incorrect (210 tokens):}
+\begin{quote}\small
+We work backwards from the 5 left.
+
+Since she sold 2 more to the red house, subtract 2 from 5: $5 - 2 = 3$.
+
+Since she sold a third at the green house, divide by 3: $3 \div 3 = 1$.
+
+Since she sold half at the orange house, multiply by 2: $1 \times 2 = 2$.
+
+Adding up: $1 + 2 = 3$. So Melanie started with 3 vacuum cleaners.
+\end{quote}
+
+\noindent\textbf{Teacher-1 --- correct (298 tokens):}
+\begin{quote}\small
+Let $x$ be the total number she started with.
+
+She sold a third at the green house, leaving $(2/3)x$. She sold 2 more, leaving
+$(2/3)x - 2$. She sold half of what was left at the orange house, so the equation is:
+$$(1/2)\big((2/3)x - 2\big) = 5.$$
+Multiply both sides by 2: $(2/3)x - 2 = 10$. Add 2: $(2/3)x = 12$. Multiply by
+$3/2$: $x = 12 \times (3/2) = 18$.
+
+The final answer is: 18
+\end{quote}
+\emph{Takeaway:} zero-shot applies the backward operations in the wrong order;
+Teacher-1 introduces a variable and solves the equation systematically---evidence
+it learned a reasoning \emph{strategy}, not just answers.
+
+\subsection*{Case 3 --- Teacher-1 loss (hard difficulty)}
+\noindent\textbf{Problem 9.}\quad Gold answer: \textbf{460}
+
+\textit{Question.} Eliza earns \$10/hour for the first 40 hours, plus overtime pay
+of $1.2\times$ her regular rate. If she worked 45 hours this week, what are her
+earnings?
+
+\noindent\textbf{Zero-shot --- correct (149 tokens):}
+\begin{quote}\small
+Regular earnings for 40 hours: $40 \times \$10 = \$400$.
+
+Overtime rate: $1.2 \times \$10 = \$12$; overtime for 5 hours: $5 \times \$12 = \$60$.
+
+Total: $\$400 + \$60 = \$460$.
+
+The final answer is: \$460
+\end{quote}
+
+\noindent\textbf{Teacher-1 --- incorrect (164 tokens):}
+\begin{quote}\small
+Regular earnings for 40 hours: $40 \times \$10 = \$400$.
+
+Overtime rate: $1.2 \times \$10 = \$12$.
+
+Total earnings $= \$400 + (\$12 \times 45) = \$400 + \$540 = \$940$.
+
+The final answer is: 940
+\end{quote}
+\emph{Takeaway:} Teacher-1 sets the problem up correctly but multiplies the
+overtime rate by \emph{all} 45 hours instead of the 5 overtime hours---a single
+arithmetic slip inside otherwise sound reasoning, the dominant student failure mode.
+
+\subsection*{Case 4 --- both correct (easy difficulty, style comparison)}
+\noindent\textbf{Problem 0.}\quad Gold answer: \textbf{18}
+
+\textit{Question.} Janet's ducks lay 16 eggs per day. She eats three for breakfast
+and bakes muffins with four. She sells the remainder at \$2 per egg. How much does
+she make daily?
+
+\noindent\textbf{Zero-shot --- correct (129 tokens):}
+\begin{quote}\small
+She lays 16 eggs; eats 3, leaving $16 - 3 = 13$; bakes with 4, leaving $13 - 4 = 9$.
+She sells 9 eggs at \$2 each: $9 \times \$2 = \$18$.
+
+The final answer is: \$18
+\end{quote}
+
+\noindent\textbf{Teacher-1 --- correct (154 tokens):}
+\begin{quote}\small
+Eggs not eaten: $16 - 3 = 13$. Eggs sold after baking: $13 - 4 = 9$.
+
+Multiply by price: $9 \times \$2 = \$18$.
+
+The final answer is: 18
+\end{quote}
+\emph{Takeaway:} on easy problems both already succeed and differ only in phrasing;
+Teacher-1 is slightly more verbose (154 vs.\ 129 tokens), consistent with the
+verbosity-inheritance effect.
 
 \section{Use of AI assistants}
 Per course policy: we used an AI coding assistant to help implement the pipeline
