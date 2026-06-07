@@ -654,9 +654,26 @@ Teacher-1 is slightly more verbose (154 vs.\ 129 tokens), consistent with the
 verbosity-inheritance effect.
 
 \section{Use of AI assistants}
-Per course policy: we used an AI coding assistant to help implement the pipeline
-code, debug Colab/TRL environment issues, and draft this report; all experiments,
-results, and analysis decisions are our own, and all reported numbers come from our
-runs. \emph{(Adjust to reflect your exact usage before submission.)}
+Per course policy, we disclose our use of an AI coding assistant (Claude). We used
+it for the following:
+\begin{itemize}
+  \item \textbf{Code structure and implementation.} Designing the overall
+  repository layout and implementing the \texttt{mathdistill} package modules
+  (data loading, prompting, answer extraction, generation, rejection sampling,
+  training, evaluation, and metrics).
+  \item \textbf{Configuration and hyperparameters.} Writing the YAML config files
+  and suggesting reasonable default parameters for our setting (e.g.\ LoRA rank,
+  learning rate, batch sizes, quantization and generation settings).
+  \item \textbf{Debugging.} Diagnosing and fixing Colab, TRL, and bitsandbytes
+  environment and version issues encountered while running the pipeline.
+  \item \textbf{Analysis tooling.} Drafting the analysis and plotting cells used to
+  produce the tables, figures, significance tests, and per-difficulty/qualitative
+  summaries from our prediction files.
+  \item \textbf{Writing.} Drafting and structuring this report, the README, and the
+  project plan, which we then reviewed and edited.
+\end{itemize}
+All experimental design choices, scope decisions, and interpretations are our own;
+we ran every experiment ourselves, inspected the outputs, and verified that all
+numbers reported in this paper come from our own runs.
 
 \end{document}
