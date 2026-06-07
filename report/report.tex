@@ -384,6 +384,32 @@ the 5 overtime hours---a single arithmetic slip inside otherwise correct reasoni
 On easy problems both models already succeed and differ only in phrasing.
 (Transcripts in Appendix~\ref{app:qual}.)
 
+\paragraph{The teacher's ceiling bounds supervision on hard problems.} Because we
+keep only traces whose answer matches the gold label, the student can only learn
+from problems the teacher actually solves. Across three sampling passes, 6{,}922 of
+7{,}473 training problems (92.6\%) received at least one correct trace, leaving
+\textbf{551 problems (7.4\%) with no teacher supervision at all}---and these are
+disproportionately the hardest, precisely the ones the 8B teacher itself fails
+(its accuracy falls to 72.7\% on the hard tertile). The training distribution is
+thus biased toward problems the teacher can solve, so the student is most
+under-supervised exactly where it most needs help. This offers a concrete
+explanation for the persistent hard-bucket gap in Table~\ref{tab:difficulty}
+(Teacher-1 reaches only 32.6\% on hard problems): rejection-sampled distillation
+cannot teach reasoning the teacher never demonstrates.
+
+\paragraph{Distillation transfers problem framing more than arithmetic execution.}
+The qualitative and per-difficulty evidence together suggest the student inherits
+the teacher's \emph{problem-setup} competence more readily than its
+\emph{computational reliability}. In the winning cases, the gains come from better
+structure---decomposing the cost into whole cartons, or introducing a variable and
+forming an equation---rather than from raw calculation. Conversely, the
+representative failure (the overtime problem) is a fully correct setup undone by a
+single arithmetic slip (multiplying by 45 instead of 5 hours). In other words,
+distillation appears to teach the 1B student \emph{how to approach} a problem more
+effectively than \emph{how to carry out} the resulting arithmetic without error,
+which is consistent with the large remaining gap on multi-step hard problems where
+both correct framing and flawless execution are required.
+
 \paragraph{Gap closed.} The distilled student closes roughly 20\% of the
 zero-shot-to-teacher accuracy gap (8.9 of 44.8 pp) at one-fifth the memory
 footprint---a meaningful, honest result at this scale.
