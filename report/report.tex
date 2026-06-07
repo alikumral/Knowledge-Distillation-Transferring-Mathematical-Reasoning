@@ -94,6 +94,20 @@ occur.
   an out-of-distribution (MATH) evaluation showing no transfer.
 \end{enumerate}
 
+\paragraph{Hypotheses.} Our experiments are organized around four hypotheses, which
+the five comparison conditions (Section~\ref{sec:method}) are designed to test:
+\begin{itemize}
+  \item[\textbf{H1}] \textbf{Distillation works:} a 1B student fine-tuned on
+  teacher CoT significantly outperforms the zero-shot 1B baseline on GSM8K.
+  \item[\textbf{H2}] \textbf{Teacher reasoning $>$ gold labels:} a student trained
+  on teacher-generated CoT outperforms one trained on GSM8K's own gold solutions,
+  i.e.\ the teacher signal exceeds what the labels alone provide.
+  \item[\textbf{H3}] \textbf{More traces help:} training on three teacher traces
+  per problem outperforms training on one.
+  \item[\textbf{H4}] \textbf{Genuine generalization:} the gains transfer to
+  out-of-distribution problems (MATH), rather than being specific to GSM8K.
+\end{itemize}
+
 \section{Related Work}
 \paragraph{Knowledge distillation.} Hinton et al.~\cite{hinton2015} introduced
 distillation via soft-label matching. For autoregressive LLMs, storing teacher
@@ -123,6 +137,7 @@ open (8B teacher, 1B student, single-GPU budget) and in emphasizing controlled
 baselines and honest negative results over a single benchmark number.
 
 \section{Method}
+\label{sec:method}
 \subsection{Overview}
 Our pipeline has four stages: (1) teacher CoT generation, (2) rejection sampling
 and dataset construction, (3) QLoRA fine-tuning of the student, and (4) evaluation.
@@ -268,6 +283,9 @@ Gold vs Zero-shot          & 172 / 229 & $0.005$             & gold \emph{hurts}
   \item \textbf{H3 (more traces help) --- reversed and robust.} Teacher-1
   ($46.93\pm0.11$) significantly beats Teacher-3 ($44.33\pm0.77$); the $+2.6$ pp gap
   is $\approx5.9\times$ the pooled seed std ($p=0.019$).
+  \item \textbf{H4 (out-of-distribution transfer) --- not supported.} The gains do
+  not carry to MATH: Teacher-1 scores $29.1\%$, \emph{below} the zero-shot $33.5\%$
+  (Section~\ref{sec:ood}, Table~\ref{tab:main}).
   \item \textbf{Gold fine-tuning hurts.} Condition ii falls $4.3$ pp \emph{below}
   zero-shot ($p=0.005$).
 \end{itemize}
@@ -347,6 +365,7 @@ Teacher-3           & 12.91 & 1.13 \\
 \end{table}
 
 \subsection{Out-of-distribution (MATH)}
+\label{sec:ood}
 Distillation does \emph{not} transfer to MATH. Teacher-1 scores $29.14\pm1.98$,
 \emph{below} zero-shot's 33.53 and far below the teacher's 53.89. Teacher-1 and
 Teacher-3 are statistically indistinguishable on MATH, suggesting MATH performance
