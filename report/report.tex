@@ -522,10 +522,13 @@ built upon.
 \appendix
 \section{Reproducibility}
 Code: GitHub repository (\texttt{mathdistill} package + Colab notebook). Pipeline
-stages are config-driven (YAML) and resumable. Released artifacts: cleaned
-teacher-CoT dataset and best LoRA adapter (Hugging Face). Key settings: GSM8K
-\texttt{main}; teacher 4-bit NF4; QLoRA rank 16 / $\alpha$ 32 / 3 epochs / lr
-$2\times10^{-4}$; greedy evaluation; 3 seeds for trained conditions.
+stages are config-driven (YAML) and resumable. Released artifacts (Hugging Face):
+the best LoRA adapter at
+\url{https://huggingface.co/alikumral/llama-3.2-1b-gsm8k-cot-distilled} and the
+cleaned teacher-CoT dataset at
+\url{https://huggingface.co/datasets/alikumral/gsm8k-teacher-cot-traces}.
+Key settings: GSM8K \texttt{main}; teacher 4-bit NF4; QLoRA rank 16 / $\alpha$ 32 /
+3 epochs / lr $2\times10^{-4}$; greedy evaluation; 3 seeds for trained conditions.
 
 \section{Qualitative transcripts}
 \label{app:qual}

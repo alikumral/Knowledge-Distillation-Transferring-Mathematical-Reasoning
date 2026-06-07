@@ -169,8 +169,8 @@ plan.md             full project plan
 
 ## Released artifacts
 
-- Trained LoRA adapter (best condition, Teacher-1): _add Hugging Face link here_
-- Cleaned teacher-CoT trace dataset: _add Hugging Face link here_
+- Trained LoRA adapter (best condition, Teacher-1): https://huggingface.co/alikumral/llama-3.2-1b-gsm8k-cot-distilled
+- Cleaned teacher-CoT trace dataset: https://huggingface.co/datasets/alikumral/gsm8k-teacher-cot-traces
 
 ## AI-usage disclosure
 
