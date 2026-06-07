@@ -198,16 +198,21 @@ comparisons, exact McNemar tests; trained conditions additionally report mean
 $\pm$ std over three seeds.
 
 \section{Experimental Setup}
-\textbf{Models.} Teacher \texttt{meta-llama/Llama-3.1-8B-Instruct}; student
-\texttt{meta-llama/Llama-3.2-1B-Instruct}; both 4-bit NF4, double quant, bf16
-compute. \textbf{Data.} \texttt{openai/gsm8k} (\texttt{main}): 7{,}473 train /
-1{,}319 test; out-of-distribution: a frozen stratified subset of
-\texttt{qwedsacf/competition\_math} (167 problems). \textbf{Hardware.} Google Colab
-(A100 for generation, training, and most evaluation). The proposal specified
-latency on a T4; we report latency on the A100 actually used and treat absolute
-latency as hardware-specific (the cross-model \emph{ratio} is the meaningful
-quantity). \textbf{Reproducibility.} All hyperparameters are in version-controlled
-YAML configs; every run records its seed and configuration.
+\begin{description}
+  \item[Models.] Teacher \texttt{meta-llama/Llama-3.1-8B-Instruct}; student
+  \texttt{meta-llama/Llama-3.2-1B-Instruct}. Both loaded in 4-bit NF4 with double
+  quantization and bf16 compute.
+  \item[Data.] \texttt{openai/gsm8k} (config \texttt{main}): 7{,}473 train /
+  1{,}319 test. Out-of-distribution: a frozen, level-stratified subset of
+  \texttt{qwedsacf/competition\_math} (167 problems, ``MATH-167'').
+  \item[Hardware.] Google Colab, NVIDIA A100 for generation, training, and most
+  evaluation. (The proposal specified latency on a T4; we report A100 latency and
+  treat absolute values as hardware-specific---the cross-model \emph{ratio} is the
+  meaningful quantity.)
+  \item[Reproducibility.] All hyperparameters live in version-controlled YAML
+  configs; every run records its seed and configuration; pipeline stages are
+  resumable.
+\end{description}
 
 \section{Results}
 \subsection{Main results}
@@ -251,15 +256,19 @@ Gold vs Zero-shot          & 172 / 229 & $0.005$             & gold \emph{hurts}
 \end{table}
 
 \paragraph{Findings.}
-\textbf{H1 (distillation works): confirmed, overwhelmingly.} Teacher-1 improves
-over zero-shot by $+8.9$ pp ($p<10^{-9}$); the seed std of 0.0011 shows the result
-is extremely stable. \textbf{H2 (teacher $>$ gold): confirmed, overwhelmingly.}
-Teacher-1 beats Gold by $+13.2$ pp ($p<10^{-17}$): teacher-generated reasoning
-provides signal beyond the labeled data. \textbf{H3 (more traces help): reversed and
-robust.} Teacher-1 ($46.93\pm0.11$) significantly beats Teacher-3
-($44.33\pm0.77$); the $+2.6$ pp gap is $\approx5.9\times$ the pooled seed std
-($p=0.019$). \textbf{Gold fine-tuning hurts:} condition ii falls $4.3$ pp below
-zero-shot ($p=0.005$).
+\begin{itemize}
+  \item \textbf{H1 (distillation works) --- confirmed, overwhelmingly.} Teacher-1
+  improves over zero-shot by $+8.9$ pp ($p<10^{-9}$); a seed std of $0.0011$ shows
+  the result is extremely stable.
+  \item \textbf{H2 (teacher $>$ gold) --- confirmed, overwhelmingly.} Teacher-1
+  beats Gold by $+13.2$ pp ($p<10^{-17}$): teacher-generated reasoning provides
+  signal beyond the labeled data.
+  \item \textbf{H3 (more traces help) --- reversed and robust.} Teacher-1
+  ($46.93\pm0.11$) significantly beats Teacher-3 ($44.33\pm0.77$); the $+2.6$ pp gap
+  is $\approx5.9\times$ the pooled seed std ($p=0.019$).
+  \item \textbf{Gold fine-tuning hurts.} Condition ii falls $4.3$ pp \emph{below}
+  zero-shot ($p=0.005$).
+\end{itemize}
 
 \subsection{Accuracy by difficulty}
 We bucket the 1{,}319 test problems into easy/medium/hard tertiles by gold-CoT
