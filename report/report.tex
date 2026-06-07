@@ -408,18 +408,48 @@ footprint---a meaningful, honest result at this scale.
   signal, where we see no gain.
 \end{itemize}
 
-\section{Conclusion and Future Work}
-Sequence-level CoT distillation from a small open 8B teacher meaningfully improves a
-1B student on GSM8K ($38.1\%\rightarrow46.9\%$), and teacher-generated reasoning
-clearly beats the dataset's own gold solutions---both overwhelmingly significant.
-Equally informative are our negative findings: gold-CoT fine-tuning hurts, more
-teacher traces hurt, and gains do not transfer to MATH. The practical payoff of the
-small student is memory ($5.2\times$ lower VRAM), not latency, because the student
-inherits the teacher's verbosity. Future work: (1) completion-only loss masking
-(highest priority); (2) length-controlled or quality-filtered trace selection to
-address the verbosity tax and the counter-productive third trace; (3) a stronger
-math teacher (e.g., Qwen2.5-Math-7B) and a CAS-based MATH grader; (4) mixing in a
-small amount of OOD data to test whether transfer can be induced.
+\section{Conclusion}
+We studied sequence-level chain-of-thought distillation from a small, open 8B
+teacher into a 1B student on grade-school math, under a tight single-GPU budget and
+with deliberately controlled baselines. Our central result is positive and
+statistically overwhelming: distillation lifts the 1B student from $38.1\%$ to
+$46.9\%$ on GSM8K test ($p<10^{-9}$), and---more importantly---training on
+teacher-generated reasoning clearly outperforms training on the dataset's own gold
+solutions ($+13$ pp, $p<10^{-17}$). The latter comparison is the heart of the
+project: because the two conditions share an identical prompt and answer format and
+differ only in the \emph{content} of the reasoning, the gap isolates the value of
+the teacher's reasoning style itself, showing it carries signal beyond what the
+labeled answers alone provide. The per-difficulty breakdown reinforces this---the
+distilled student improves across easy, medium, and hard problems alike---and the
+qualitative transcripts show the mechanism concretely: the student learns
+transferable reasoning strategies, such as setting up and solving an equation,
+rather than merely memorizing answers.
+
+Equally important are the findings that ran against our expectations, which we
+report honestly because they are as informative as the successes. Fine-tuning on
+gold solutions actually \emph{degraded} accuracy below the zero-shot baseline, as
+the terse gold style taught the model to answer briefly rather than reason; and
+using three teacher traces per problem was significantly \emph{worse} than using
+one---a robust $\sim$6$\sigma$ effect across seeds---indicating that, for a model of
+this capacity, the diversity of additional traces hurts more than it helps under
+sequence-level supervision. The improvements also did not transfer out of
+distribution: accuracy on the harder MATH problems fell relative to zero-shot,
+suggesting the student specialized to GSM8K-style reasoning rather than acquiring
+general mathematical ability.
+
+Finally, our efficiency analysis reframes the practical case for small distilled
+models. At single-query latency the distilled student is barely faster than the 8B
+teacher, because it inherits the teacher's verbosity and roughly doubles its output
+length relative to zero-shot. The genuine and substantial advantage is memory: the
+student needs $5.2\times$ less peak VRAM ($1.13$ vs.\ $5.87$ GB), which translates
+directly into higher achievable concurrency and throughput on fixed hardware. In
+short, CoT distillation from a small open teacher is a cheap and effective way to
+buy meaningful reasoning gains and deployment \emph{density} at the 1B scale, but it
+is not a free lunch: naive ``more data is better'' intuitions fail, fine-tuning can
+hurt if the supervision style is mismatched, and gains remain narrowly tied to the
+target distribution. We release our code, the cleaned teacher-trace dataset, and the
+trained adapter so that this attainable point of comparison can be reproduced and
+built upon.
 
 \begin{thebibliography}{9}
 \bibitem{hinton2015} G.~Hinton, O.~Vinyals, J.~Dean. Distilling the Knowledge in a Neural Network. \emph{NeurIPS Workshop}, 2015.
