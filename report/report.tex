@@ -376,30 +376,22 @@ transfer is robust.
 
 \section{Discussion}
 \paragraph{Why does gold fine-tuning hurt, and is the comparison fair?} GSM8K's
-gold solutions are terse and stylistically unlike the student's natural output;
-training on them collapsed the student to short, conclusory answers (median 68
-tokens vs.\ 156 zero-shot), suppressing the step-by-step reasoning it needs, whereas
-the teacher's traces---in the verbose Llama chat style the student already
-favors---reinforce rather than fight its prior. A legitimate concern is that our
-full-sequence loss (Section~\ref{sec:limitations}) confounds this comparison: since
-loss is taken over the prompt as well as the completion, terse gold targets carry
-comparatively little reasoning signal per example, so full-sequence training may
-penalize the gold condition more than the verbose teacher condition. We make three
-points. First, the loss masking is \emph{identical} across all trained conditions;
-it cannot by itself create a teacher-vs-gold difference, only modulate how strongly
-the difference in target \emph{content} manifests. Second---and most
-importantly---the $+13$ pp teacher-vs-gold gap decomposes into two separately
-significant effects: teacher-vs-zero-shot ($+8.9$ pp) and gold-vs-zero-shot
-($-4.3$ pp). The masking concern applies almost entirely to the latter (terse
-targets); our core distillation result (H1) is the former, which involves
-\emph{verbose} teacher targets that full-sequence loss treats favorably and is
-therefore not explained by the confound. Consequently, even under the skeptic's
-strongest assumption---that gold's degradation is largely a masking
-artifact---teacher CoT still clearly outperforms both the zero-shot baseline and
-gold supervision; what the confound leaves uncertain is the precise \emph{magnitude}
-of the teacher-vs-gold gap, not its \emph{direction}. A completion-only ablation
-(Section~\ref{sec:limitations}) would pin down the exact size and is the most
-important follow-up.
+gold solutions are terse and unlike the student's natural output; training on them
+collapsed it to short, conclusory answers (median 68 vs.\ 156 tokens
+zero-shot)---a direct mechanistic observation---and the gold-vs-zero-shot drop is
+itself significant ($-4.3$ pp, $p=0.005$). The teacher's verbose traces instead
+reinforce the student's prior. A fair concern is that our full-sequence loss
+(Section~\ref{sec:limitations}) confounds the teacher-vs-gold comparison: because
+the loss covers the prompt, terse gold targets carry little reasoning signal per
+example, plausibly penalizing gold more than the verbose teacher. The $+13$ pp gap
+thus splits into a teacher-vs-zero-shot gain ($+8.9$ pp) and a gold-vs-zero-shot
+drop ($-4.3$ pp), and the confound bites only on the latter. \textbf{What survives
+the confound unconditionally is H1:} training on verbose teacher CoT beats the
+untrained baseline ($+8.9$ pp, $p<10^{-9}$), a gain the terse-target dilution
+cannot explain. The teacher-vs-gold comparison is where the confound has real bite,
+so we treat its precise magnitude---and conceivably its direction---as pending a
+completion-only ablation (Section~\ref{sec:limitations}), which we identify as the
+most important follow-up.
 
 \paragraph{Why does one teacher trace beat three?} Two non-exclusive explanations.
 First, with three diverse traces per problem and full-sequence loss, the student
